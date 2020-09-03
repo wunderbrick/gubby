@@ -1,8 +1,9 @@
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module SVG where
 
 import Control.Monad.Fix (MonadFix)
