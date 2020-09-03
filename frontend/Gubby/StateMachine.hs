@@ -40,6 +40,12 @@ creatureLifeCycle action creature =
             evilCheck . healthCheck $ creatureLifeCycle' action stage consciousness poopState appetite foodJournal careMistakes creatureActivity  
 
 creatureLifeCycle' :: Action -> Stage -> Consciousness -> PoopState -> Appetite -> FoodJournal -> CareMistakes -> CreatureActivity -> Creature
+
+---------------------------
+-- STAGE CHANGING EVENTS --
+---------------------------
+
+-- kill Gubby
 creatureLifeCycle' action Dead consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     Dead 
@@ -50,6 +56,7 @@ creatureLifeCycle' action Dead consciousness poopState appetite foodJournal care
     careMistakes 
     creatureActivity
 
+-- hatch Gubby
 creatureLifeCycle' TimerChangeStage Egg consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     Stage1 
@@ -60,6 +67,7 @@ creatureLifeCycle' TimerChangeStage Egg consciousness poopState appetite foodJou
     careMistakes 
     creatureActivity
 
+-- so no other events other than TimerChangeStage affect Gubby while still an egg
 creatureLifeCycle' action Egg consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     Egg 
@@ -70,6 +78,7 @@ creatureLifeCycle' action Egg consciousness poopState appetite foodJournal careM
     careMistakes 
     creatureActivity
 
+-- go full Lovecraft
 creatureLifeCycle' action StageEvil consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     StageEvil 
@@ -80,6 +89,11 @@ creatureLifeCycle' action StageEvil consciousness poopState appetite foodJournal
     careMistakes 
     creatureActivity
 
+--------------------------
+-- POOP EVENTS --
+--------------------------
+
+-- scoop poop while creature's awake (can't while asleep)
 creatureLifeCycle' UserScoopPoop stage Awake PoopPresent appetite foodJournal careMistakes creatureActivity = 
     Creature 
     stage 
@@ -90,70 +104,8 @@ creatureLifeCycle' UserScoopPoop stage Awake PoopPresent appetite foodJournal ca
     careMistakes 
     Frolicking
 
-{-}
-creatureLifeCycle' (UserFeedCreature food) stage Awake NoPoop Full foodJournal careMistakes creatureActivity = 
-    Creature 
-    stage 
-    Awake 
-    NoPoop 
-    Full 
-    foodJournal
-    careMistakes 
-    Frolicking
--}
-
-creatureLifeCycle' (UserFeedCreature food) stage Awake NoPoop appetite foodJournal careMistakes creatureActivity = 
-    Creature 
-    stage 
-    Awake 
-    NoPoop 
-    (fillStomach food appetite) 
-    (journalFood food foodJournal)  
-    careMistakes 
-    (Eating food)
-
-creatureLifeCycle' TimerMakeHungry stage consciousness poopStatus Full foodJournal careMistakes creatureActivity = 
-    Creature 
-    stage 
-    consciousness 
-    poopStatus 
-    (Hungry (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing)) 
-    foodJournal 
-    careMistakes 
-    creatureActivity
-
-creatureLifeCycle' TimerMakeHungry stage Asleep poopStatus (Hungry stomach) foodJournal careMistakes creatureActivity = 
-    Creature 
-    stage 
-    Asleep 
-    poopStatus 
-    (Hungry stomach)
-    foodJournal 
-    careMistakes
-    creatureActivity
-
-creatureLifeCycle' TimerMakeHungry stage consciousness poopStatus (Hungry stomach) foodJournal careMistakes (Eating food) = 
-    Creature 
-    stage 
-    consciousness 
-    poopStatus 
-    (Hungry stomach) 
-    foodJournal 
-    careMistakes -- don't add hunger to care mistake if feeding
-    (Eating food)
-
-creatureLifeCycle' TimerMakeHungry stage Awake poopStatus (Hungry stomach) foodJournal careMistakes creatureActivity = 
-    Creature 
-    stage 
-    Awake 
-    poopStatus 
-    (Hungry stomach) 
-    foodJournal 
-    (careMistakes ++ [Hunger]) -- only add hunger to care mistakes while awake
-    creatureActivity
-
+-- make Gubby poop while asleep, does not add care mistake
 creatureLifeCycle' TimerMakePoop stage Asleep NoPoop appetite foodJournal careMistakes creatureActivity =
-    -- creature can poop itself while asleep but won't add a care mistake
     Creature 
     stage 
     Asleep
@@ -163,8 +115,8 @@ creatureLifeCycle' TimerMakePoop stage Asleep NoPoop appetite foodJournal careMi
     careMistakes 
     AvoidingPoop
 
+-- ignore PoopPresent while asleep (Gubby doesn't accumulate a care mistake)
 creatureLifeCycle' TimerMakePoop stage Asleep PoopPresent appetite foodJournal careMistakes creatureActivity =
-    -- creature can poop itself while asleep but won't add a care mistake
     Creature 
     stage 
     Asleep
@@ -174,8 +126,8 @@ creatureLifeCycle' TimerMakePoop stage Asleep PoopPresent appetite foodJournal c
     careMistakes 
     AvoidingPoop
 
+-- give Gubby a care mistake if awake and poop's present
 creatureLifeCycle' TimerMakePoop stage Awake PoopPresent appetite foodJournal careMistakes creatureActivity =
-    -- only add poop that makes a care mistake when the creature's awake
     Creature 
     stage 
     Awake 
@@ -185,6 +137,7 @@ creatureLifeCycle' TimerMakePoop stage Awake PoopPresent appetite foodJournal ca
     (careMistakes ++ [TooMuchPoop]) 
     AvoidingPoop
 
+-- Gubby poops if it's time and there's no previous poop (no care mistake)
 creatureLifeCycle' TimerMakePoop stage Awake NoPoop appetite foodJournal careMistakes creatureActivity =
     Creature 
     stage 
@@ -195,6 +148,70 @@ creatureLifeCycle' TimerMakePoop stage Awake NoPoop appetite foodJournal careMis
     careMistakes
     AvoidingPoop
 
+--------------------
+-- FEEDING EVENTS --
+--------------------
+
+-- make Gubby hungry if full (no care mistake)
+creatureLifeCycle' TimerMakeHungry stage consciousness poopStatus Full foodJournal careMistakes creatureActivity = 
+    Creature 
+    stage 
+    consciousness 
+    poopStatus 
+    (Hungry (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing)) 
+    foodJournal 
+    careMistakes 
+    creatureActivity
+
+-- if hunger timer goes off while Gubby's asleep don't add a care mistake
+creatureLifeCycle' TimerMakeHungry stage Asleep poopStatus (Hungry stomach) foodJournal careMistakes creatureActivity = 
+    Creature 
+    stage 
+    Asleep 
+    poopStatus 
+    (Hungry stomach)
+    foodJournal 
+    careMistakes
+    creatureActivity
+
+-- don't add a care mistake for hunger if user's in the process of feeding Gubby when hunger timer goes off
+creatureLifeCycle' TimerMakeHungry stage consciousness poopStatus (Hungry stomach) foodJournal careMistakes (Eating food) = 
+    Creature 
+    stage 
+    consciousness 
+    poopStatus 
+    (Hungry stomach) 
+    foodJournal 
+    careMistakes
+    (Eating food)
+
+-- add care mistake if hunger timer goes off while Gubby's awake
+creatureLifeCycle' TimerMakeHungry stage Awake poopStatus (Hungry stomach) foodJournal careMistakes creatureActivity = 
+    Creature 
+    stage 
+    Awake 
+    poopStatus 
+    (Hungry stomach) 
+    foodJournal 
+    (careMistakes ++ [Hunger])
+    creatureActivity
+
+-- feed Gubby while awake and no poop present
+creatureLifeCycle' (UserFeedCreature food) stage Awake NoPoop appetite foodJournal careMistakes creatureActivity = 
+    Creature 
+    stage 
+    Awake 
+    NoPoop 
+    (fillStomach food appetite) 
+    (journalFood food foodJournal)  
+    careMistakes 
+    (Eating food)
+
+--------------------------
+-- CONSCIOUSNESS EVENTS --
+--------------------------
+
+-- put Gubby to sleep
 creatureLifeCycle' TimerPutToSleep stage consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     stage 
@@ -205,6 +222,7 @@ creatureLifeCycle' TimerPutToSleep stage consciousness poopState appetite foodJo
     careMistakes 
     creatureActivity
 
+-- wake Gubby up
 creatureLifeCycle' TimerWakeUp stage consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     stage 
@@ -215,6 +233,11 @@ creatureLifeCycle' TimerWakeUp stage consciousness poopState appetite foodJourna
     careMistakes 
     creatureActivity
 
+--------------------
+-- FROLICK EVENTS --
+--------------------
+
+-- if it would be time to do a regular frolick when there's poop present, just keep the same poop present screen
 creatureLifeCycle' EventTriggerFrolick stage consciousness poopState appetite foodJournal careMistakes AvoidingPoop = 
     Creature 
     stage 
@@ -225,6 +248,7 @@ creatureLifeCycle' EventTriggerFrolick stage consciousness poopState appetite fo
     careMistakes 
     AvoidingPoop
 
+-- make Gubby go back to frolicking (default state) if awake and no poop present
 creatureLifeCycle' EventTriggerFrolick stage Awake poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
     stage 
@@ -234,6 +258,10 @@ creatureLifeCycle' EventTriggerFrolick stage Awake poopState appetite foodJourna
     foodJournal 
     careMistakes 
     Frolicking
+
+--------------------------
+-- CATCH ALL, NO UPDATE --
+--------------------------
 
 creatureLifeCycle' action stage consciousness poopState appetite foodJournal careMistakes creatureActivity = 
     Creature 
