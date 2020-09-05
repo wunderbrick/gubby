@@ -14,7 +14,6 @@ import Reflex
 import Reflex.Dom.Core
 
 import Model
-import StateMachine
 
 -- TODO: Refactor this atrocious mess
 -- https://stackoverflow.com/questions/38268962/a-single-svg-element-with-reflex-frp

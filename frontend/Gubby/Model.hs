@@ -44,7 +44,24 @@ data FoodJournal =
     (Maybe Food)
     (Maybe Food)
     (Maybe Food)
-    deriving (Eq, Show) -- 10 slots for FML
+    deriving (Eq, Show)
+
+goEvil :: FoodJournal
+goEvil = 
+    FoodJournal 
+    -- F
+    (Just ShortFood) 
+    (Just ShortFood) 
+    (Just LongFood) 
+    (Just ShortFood) 
+    -- M
+    (Just LongFood) 
+    (Just LongFood) 
+    -- L
+    (Just ShortFood) 
+    (Just LongFood) 
+    (Just ShortFood) 
+    (Just ShortFood)
 
 type CareMistakes = [CareMistake]
 

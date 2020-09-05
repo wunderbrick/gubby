@@ -18,8 +18,7 @@ extra-source-files:  CHANGELOG.md
 
 executable frontend
   main-is:               Main.hs
-  other-modules:         StateMachine
-                       , Model
+  other-modules:         Model
                        , SVG
   -- other-extensions:
   build-depends:         base >=4.12 && <4.13
