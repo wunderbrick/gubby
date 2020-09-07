@@ -171,7 +171,8 @@ timerWidget dStage dPause gameStateButtonsEvents = do
   let (ePause, eRespawn) = gameStateButtonsEvents
   initTime <- liftIO getCurrentTime
   eTick <- tickLossy 1.0 initTime
-  timer' dStage dPause ePause eTick
+  let eTickOnlyIfAliveAndNotEvil = gate ((\stage -> stage == Egg || stage == Stage1) <$> current dStage) eTick
+  timer' dStage dPause ePause eTickOnlyIfAliveAndNotEvil
 
 timer' ::
   ( MonadWidget t m
@@ -192,12 +193,7 @@ timer' dStage dPause ePause eTick = do
 
     bPause = startOrPause <$> current dPause
 
-  bTimer <- hold 
-    never 
-    . gate 
-      ((\stage -> 
-        stage /= Dead || stage /= StageEvil) <$> current dStage) -- don't tick if dead or evil, game's over
-      $ (tag bPause eTick) <$ ePause
+  bTimer <- hold never $ (tag bPause eTick) <$ ePause
         
   let eSwitch = switch bTimer
   foldDyn ($) 0 eSwitch
