@@ -54,7 +54,7 @@ rangeInputConf = def {
   , _rangeInputConfig_initialValue = 30.0
   }
 
-gubby ::
+gubby :: forall t m.
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
@@ -71,15 +71,17 @@ gubby = mdo
   el "br" blank
   el "br" blank
   el "div" $ mdo
-    dCreature <- creatureNetwork topLevelButtonEvents
+    dCreature <- fst <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents
+
+    gameStateButtonsEvents <- gameStateButtons (paused <$> dCreature)
 
     gameView dCreature 
 
-    topLevelButtonEvents <- topLevelButtons dCreature
+    gamePlayButtonsEvents <- gamePlayButtons dCreature
     
     el "br" blank
 
-    text "Adjust Game Speed:"
+    text "Game Speed (Feed Every n Seconds):"
 
     el "br" blank
 
@@ -88,6 +90,13 @@ gubby = mdo
     el "br" blank
 
     rangeVal <- rangeInput $ rangeInputConf
+
+    el "br" blank
+    el "br" blank
+
+    dAge <- snd <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents
+
+    dynText $ (pack . ("Age: " ++) . (++ " seconds") . show) <$> dAge
 
     el "br" blank
     el "br" blank
@@ -134,7 +143,7 @@ debugView dCreature = do
   prettyView "Food Journal: " foodJournal
   prettyView "Care Mistakes: " careMistakes
   prettyView "Creature Activity: " creatureActivity 
-
+  prettyView "Paused: " paused
 
 makeButton :: 
   ( MonadWidget t m
@@ -155,14 +164,14 @@ timerWidget ::
   , MonadHold t m
   ) => 
   Dynamic t Stage ->
+  Dynamic t Bool ->
+  (Event t (), Event t ()) ->
   m (Dynamic t Integer)
-timerWidget dStage = do
+timerWidget dStage dPause gameStateButtonsEvents = do
+  let (ePause, eRespawn) = gameStateButtonsEvents
   initTime <- liftIO getCurrentTime
   eTick <- tickLossy 1.0 initTime
-  eStart <- makeButton "Start"
-  --ePause <- makeButton "Pause"
-  el "br" $ blank 
-  timer' dStage eStart {-ePause-} never eTick
+  timer' dStage dPause ePause eTick
 
 timer' ::
   ( MonadWidget t m
@@ -171,16 +180,25 @@ timer' ::
   , MonadHold t m
   ) =>
   Dynamic t Stage ->
-  Event t () -> 
+  Dynamic t Bool ->
   Event t () -> 
   Event t TickInfo -> 
   m (Dynamic t Integer)
-timer' dStage eStart ePause eTick = do
+timer' dStage dPause ePause eTick = do
+  let
+    startOrPause :: Bool -> (Integer -> Integer)
+    startOrPause p =
+      if p then (0+) else (1+)
+
+    bPause = startOrPause <$> current dPause
+
   bTimer <- hold 
     never 
     . gate 
-      ((\stage -> stage /= Dead || stage /= StageEvil) <$> current dStage) -- don't tick if dead or evil, game's over
-      $ leftmost $ [ {-((0+) <$ eTick) <$ ePause,-} ((1+) <$ eTick) <$ eStart ]
+      ((\stage -> 
+        stage /= Dead || stage /= StageEvil) <$> current dStage) -- don't tick if dead or evil, game's over
+      $ (tag bPause eTick) <$ ePause
+        
   let eSwitch = switch bTimer
   foldDyn ($) 0 eSwitch
 
@@ -191,11 +209,13 @@ creatureNetwork ::
   , MonadHold t m
   ) =>
   (Event t (), Event t (), Event t ()) ->
-  m (Dynamic t Creature)
-creatureNetwork topLevelButtonEvents = mdo
-  let (eFeedBanana, eFeedPlum, eScoop) = topLevelButtonEvents
+  (Event t (), Event t ()) ->
+  m (Dynamic t Creature, Dynamic t Integer)
+creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents = mdo
+  let (eFeedBanana, eFeedPlum, eScoop) = gamePlayButtonsEvents
       eFeed = leftmost [ LongFood <$ eFeedBanana, ShortFood <$ eFeedPlum ]
-  dTimer <- timerWidget dStage
+      (ePause, eRespawn) = gameStateButtonsEvents
+  dTimer <- timerWidget dStage dPause gameStateButtonsEvents
   dStage <- stageNetwork dTimer dCareMistakes dFoodJournal
   dConsciousness <- consciousnessNetwork dTimer
   dPoopState <- poopStateNetwork dTimer eScoop
@@ -203,9 +223,10 @@ creatureNetwork topLevelButtonEvents = mdo
   dFoodJournal <- foodJournalNetwork eFeed
   dCareMistakes <- careMistakesNetwork dTimer dConsciousness dAppetite dPoopState
   dCreatureActivity <- creatureActivityNetwork dTimer eFeed dPoopState eScoop
+  dPause <- pauseNetwork ePause
   
   return 
-    $ Creature 
+    $ (Creature 
     <$> dStage
     <*> dConsciousness 
     <*> dPoopState 
@@ -213,6 +234,20 @@ creatureNetwork topLevelButtonEvents = mdo
     <*> dFoodJournal 
     <*> dCareMistakes 
     <*> dCreatureActivity
+    <*> dPause
+    , dTimer)
+
+pauseNetwork :: 
+  ( MonadWidget t m
+  , Reflex t
+  , MonadFix m
+  , MonadHold t m
+  ) =>
+  Event t () ->
+  m (Dynamic t Bool)
+pauseNetwork ePause = mdo
+  foldDyn ($) True $ leftmost [ not <$ ePause ] 
+
 
 stageNetwork ::
   ( MonadWidget t m
@@ -237,7 +272,7 @@ stageNetwork dTimer dCareMistakes dFoodJournal = do
       makeEvil _ = StageEvil
     
       bHatch = (\time -> time == 1) <$> current dTimer
-      eHatch = hatch <$ gate bHatch (updated dTimer) -- hatch 1 second after pressing start
+      eHatch = hatch <$ gate bHatch (updated dTimer) -- hatch 1 second after pressing start initially
       
       bKill = (\careMistakes -> length careMistakes >= 6) <$> current dCareMistakes
       eKill = kill <$ gate bKill (updated dTimer) -- kill if too many care mistakes
@@ -312,7 +347,7 @@ poopEvent dTimer =
     makePoop ps =
       if ps == NoPoop then PoopPresent else ps
 
-    bMakePoop = isItTime 50 <$> (current dTimer)
+    bMakePoop = isItTime 70 <$> (current dTimer)
   in 
     makePoop <$ gate bMakePoop (updated dTimer)
 
@@ -447,6 +482,7 @@ determineView dCreature =
   <*> (poopState <$> dCreature)
   <*> (creatureActivity <$> dCreature) 
   <*> (appetite <$> dCreature)
+  <*> (paused <$> dCreature)
 
 determineView' :: 
   ( MonadWidget t m
@@ -459,24 +495,28 @@ determineView' ::
   PoopState -> 
   CreatureActivity ->
   Appetite ->
+  Bool ->
   m ()
-determineView' stage consciousness poopState act appetite =
+determineView' stage consciousness poopState act appetite paused =
   case stage of
     Egg -> eggSVG
-    Stage1 -> 
-      case consciousness of
-        Asleep ->
-          case poopState of
-            PoopPresent -> sleepingNextToPoopSVG
-            NoPoop -> sleepingSVG 
-        Awake ->
-          case act of
-            Frolicking -> 
-              case appetite of 
-                Full -> frolickingSVG
-                Hungry _ -> hungryFrolickingSVG
-            Eating food -> eatingSVG food
-            AvoidingPoop -> avoidingPoopSVG
+    Stage1 ->
+      case paused of
+        False -> 
+          case consciousness of
+            Asleep ->
+              case poopState of
+                PoopPresent -> sleepingNextToPoopSVG
+                NoPoop -> sleepingSVG 
+            Awake ->
+              case act of
+                Frolicking -> 
+                  case appetite of 
+                    Full -> frolickingSVG
+                    Hungry _ -> hungryFrolickingSVG
+                Eating food -> eatingSVG food
+                AvoidingPoop -> avoidingPoopSVG
+        True -> el "h2" $ text "PAUSED"
     Dead -> deadSVG
     StageEvil -> stageEvilSVG
 
@@ -502,7 +542,32 @@ disable :: Bool -> Map Text Text
 disable True  = singleton "disabled" ""
 disable False = mempty
 
-topLevelButtons ::
+gameStateButtons ::
+  ( MonadWidget t m
+  , Reflex t
+  , MonadFix m
+  , MonadHold t m
+  ) =>
+  Dynamic t Bool ->
+  m (Event t (), Event t ())
+gameStateButtons dPause = mdo
+  let
+    pauseButtonText :: Bool -> Text
+    pauseButtonText b =
+      if b then "Start" else "Pause"
+
+  (eP,_) <- elDynAttr' "button" mempty $ dynText $ pauseButtonText <$> dPause
+  let ePause = domEvent Click eP
+
+  (eRs,_) <- elDynAttr' "button" mempty $ text "Respawn"
+  let eRespawn = domEvent Click eRs
+
+  el "br" blank
+  el "br" blank
+
+  return (ePause, eRespawn)
+
+gamePlayButtons ::
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
@@ -510,7 +575,7 @@ topLevelButtons ::
   ) =>
   Dynamic t Creature -> 
   m (Event t (), Event t (), Event t ())
-topLevelButtons dCreature = mdo
+gamePlayButtons dCreature = mdo
   let dHunger = appetite <$> dCreature
       dStage = stage <$> dCreature
       dConsciousness = consciousness <$> dCreature

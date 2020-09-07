@@ -97,6 +97,7 @@ data Creature =
         , foodJournal ::  FoodJournal-- the total history of what's been eaten, used to determine evil mode
         , careMistakes :: CareMistakes
         , creatureActivity :: CreatureActivity
+        , paused :: Bool
     }
     deriving (Eq, Show)
 
@@ -110,4 +111,5 @@ initCreature =
     (FoodJournal Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     []
     Frolicking
+    True
     
