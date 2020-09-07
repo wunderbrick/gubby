@@ -23,6 +23,10 @@ import SVG
 main :: IO ()
 main = mainWidgetWithHead docHead gubby
 
+css :: Text
+css = 
+  ".slider-width { width: 270px; }"
+
 docHead ::
   ( MonadWidget t m
   , Reflex t
@@ -31,9 +35,24 @@ docHead ::
   ) =>
   m ()
 docHead = do
-  elAttr "meta" (singleton "charset" "utf-8") $ blank
-  elAttr "html" (singleton "lang" "en-US") $ blank
+  elAttr "meta" ("charset" =: "utf-8") $ blank
+  elAttr "html" ("lang" =: "en-US") $ blank
+  el "style" $ text css
   el "title" $ text "Gubby"
+
+textMapInnerFloat :: String -> Float -> Map Text Text
+textMapInnerFloat str fl =
+  (pack str) =: (pack $ show fl) 
+
+rangeInputConf :: Reflex t => RangeInputConfig t
+rangeInputConf = def { 
+    _rangeInputConfig_attributes =  
+      constDyn $ textMapInnerFloat "step" 10 
+      <> textMapInnerFloat "min" 30 
+      <> textMapInnerFloat "max" 21600
+      <> "class" =: "slider-width"
+  , _rangeInputConfig_initialValue = 30.0
+  }
 
 gubby ::
   ( MonadWidget t m
@@ -58,6 +77,18 @@ gubby = mdo
 
     topLevelButtonEvents <- topLevelButtons dCreature
     
+    el "br" blank
+
+    text "Adjust Game Speed:"
+
+    el "br" blank
+
+    dynText $ (pack . show) <$> _rangeInput_value rangeVal
+
+    el "br" blank
+
+    rangeVal <- rangeInput $ rangeInputConf
+
     el "br" blank
     el "br" blank
     el "br" blank
@@ -428,7 +459,6 @@ determineView' stage consciousness poopState act appetite =
     Dead -> deadSVG
     StageEvil -> stageEvilSVG
 
--- main debug view
 gameView ::
   MonadWidget t m =>
   Dynamic t Creature ->
@@ -451,7 +481,6 @@ disable :: Bool -> Map Text Text
 disable True  = singleton "disabled" ""
 disable False = mempty
 
--- this function actually returns events along with generating DOM elements
 topLevelButtons ::
   ( MonadWidget t m
   , Reflex t
