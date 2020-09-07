@@ -94,6 +94,13 @@ gubby = mdo
     el "br" blank
     el "br" blank
 
+    debugView dCreature
+
+    el "br" blank
+    el "br" blank
+    el "br" blank
+    el "br" blank
+
     elAttr "a" (fromList [("href", "https://reflex-frp.org/"), ("target", "_blank") ]) (text "♥ Haskell & Reflex-FRP")
 
     el "br" blank
@@ -101,16 +108,9 @@ gubby = mdo
 
     elAttr "a" (fromList [("href", "https://github.com/wunderbrick/gubby"), ("target", "_blank") ]) (text "Source Code")
 
-    el "br" blank
-    el "br" blank
-    el "br" blank
-    el "br" blank
-
-    debugView dCreature
-
     return ()
 
-debugView :: 
+debugView :: forall t m.
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
@@ -119,7 +119,22 @@ debugView ::
   Dynamic t Creature ->
   m ()
 debugView dCreature = do
-  dynText $ (pack . show) <$> dCreature 
+  let 
+    prettyView :: Show a => String -> (Creature -> a) -> m ()
+    prettyView label accessor = do
+      dynText $ ((pack . (label ++) . show) <$> accessor) <$> dCreature
+      el "br" blank
+  
+  el "b" $ text "Debug: "
+  el "br" blank
+  prettyView "Stage: " stage
+  prettyView "Consciousness: " consciousness
+  prettyView "Poop State: " poopState
+  prettyView "Appetite: " appetite
+  prettyView "Food Journal: " foodJournal
+  prettyView "Care Mistakes: " careMistakes
+  prettyView "Creature Activity: " creatureActivity 
+
 
 makeButton :: 
   ( MonadWidget t m
@@ -232,7 +247,7 @@ stageNetwork dTimer dCareMistakes dFoodJournal = do
   
   foldDyn ($) Egg $ leftmost [ eHatch, eKill, eGoEvil ]
 
-consciousnessNetwork ::
+consciousnessNetwork :: forall t m.
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
@@ -240,7 +255,7 @@ consciousnessNetwork ::
   ) =>
   Dynamic t Integer ->
   m (Dynamic t Consciousness)
-consciousnessNetwork dTimer = do
+consciousnessNetwork dTimer = mdo
   let 
     putToSleep :: Consciousness -> Consciousness
     putToSleep con = if con == Awake then Asleep else con
@@ -248,13 +263,19 @@ consciousnessNetwork dTimer = do
     wakeUp :: Consciousness -> Consciousness
     wakeUp con = if con == Asleep then Awake else con
 
+    isAsleep :: Consciousness -> Bool
+    isAsleep con =
+      con == Asleep
+
     bPutToSleep = isItTime 170 <$> (current dTimer)
     ePutToSleep = putToSleep <$ gate bPutToSleep (updated dTimer) 
 
-    bWakeUp = isItTime 55 <$> (current dTimer)
+    bWakeUp = isAsleep <$> current consc
     eWakeUp = wakeUp <$ gate bWakeUp (updated dTimer) 
 
-  foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep ]
+  consc <- foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep ]
+
+  return consc
 
 isItTime :: Integer -> Integer -> Bool
 isItTime howOften currentTime =
