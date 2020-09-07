@@ -172,7 +172,7 @@ timerWidget dStage dPause gameStateButtonsEvents = do
   initTime <- liftIO getCurrentTime
   eTick <- tickLossy 1.0 initTime
   let eTickOnlyIfAliveAndNotEvil = gate ((\stage -> stage == Egg || stage == Stage1) <$> current dStage) eTick
-  timer' dStage dPause ePause eTickOnlyIfAliveAndNotEvil
+  timer' dStage dPause ePause eTickOnlyIfAliveAndNotEvil eRespawn
 
 timer' ::
   ( MonadWidget t m
@@ -183,9 +183,10 @@ timer' ::
   Dynamic t Stage ->
   Dynamic t Bool ->
   Event t () -> 
-  Event t TickInfo -> 
+  Event t TickInfo ->
+  Event t () ->
   m (Dynamic t Integer)
-timer' dStage dPause ePause eTick = do
+timer' dStage dPause ePause eTick eRespawn = do
   let
     startOrPause :: Bool -> (Integer -> Integer)
     startOrPause p =
@@ -196,9 +197,9 @@ timer' dStage dPause ePause eTick = do
   bTimer <- hold never $ (tag bPause eTick) <$ ePause
         
   let eSwitch = switch bTimer
-  foldDyn ($) 0 eSwitch
+  foldDyn ($) 0 $ leftmost [ eSwitch, (0*) <$ eRespawn ]
 
-creatureNetwork ::
+creatureNetwork :: forall t m.
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
@@ -210,28 +211,32 @@ creatureNetwork ::
 creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents = mdo
   let (eFeedBanana, eFeedPlum, eScoop) = gamePlayButtonsEvents
       eFeed = leftmost [ LongFood <$ eFeedBanana, ShortFood <$ eFeedPlum ]
-      (ePause, eRespawn) = gameStateButtonsEvents
+      (ePause, eRespawn) = gameStateButtonsEvents 
   dTimer <- timerWidget dStage dPause gameStateButtonsEvents
-  dStage <- stageNetwork dTimer dCareMistakes dFoodJournal
-  dConsciousness <- consciousnessNetwork dTimer
-  dPoopState <- poopStateNetwork dTimer eScoop
-  dAppetite <- appetiteNetwork dTimer eFeed
-  dFoodJournal <- foodJournalNetwork eFeed
-  dCareMistakes <- careMistakesNetwork dTimer dConsciousness dAppetite dPoopState
-  dCreatureActivity <- creatureActivityNetwork dTimer eFeed dPoopState eScoop
-  dPause <- pauseNetwork ePause
-  
-  return 
-    $ (Creature 
-    <$> dStage
-    <*> dConsciousness 
-    <*> dPoopState 
-    <*> dAppetite 
-    <*> dFoodJournal 
-    <*> dCareMistakes 
-    <*> dCreatureActivity
-    <*> dPause
-    , dTimer)
+  dStage <- stageNetwork dTimer dCareMistakes dFoodJournal eRespawn
+  dConsciousness <- consciousnessNetwork dTimer eRespawn
+  dPoopState <- poopStateNetwork dTimer eScoop eRespawn
+  dAppetite <- appetiteNetwork dTimer eFeed eRespawn
+  dFoodJournal <- foodJournalNetwork eFeed eRespawn
+  dCareMistakes <- careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn
+  dCreatureActivity <- creatureActivityNetwork dTimer eFeed dPoopState eScoop eRespawn
+  dPause <- pauseNetwork ePause eRespawn
+
+  dInitCreature <- holdDyn initCreature (initCreature <$ eRespawn)
+
+  let
+    dynamicCreature = 
+      Creature 
+      <$> dStage
+      <*> dConsciousness 
+      <*> dPoopState 
+      <*> dAppetite 
+      <*> dFoodJournal 
+      <*> dCareMistakes 
+      <*> dCreatureActivity
+      <*> dPause
+
+  return (dynamicCreature, dTimer)
 
 pauseNetwork :: 
   ( MonadWidget t m
@@ -240,9 +245,10 @@ pauseNetwork ::
   , MonadHold t m
   ) =>
   Event t () ->
+  Event t () ->  
   m (Dynamic t Bool)
-pauseNetwork ePause = mdo
-  foldDyn ($) True $ leftmost [ not <$ ePause ] 
+pauseNetwork ePause eRespawn = mdo
+  foldDyn ($) True $ leftmost [ not <$ ePause, (\p -> True) <$ eRespawn ] 
 
 
 stageNetwork ::
@@ -254,8 +260,9 @@ stageNetwork ::
   Dynamic t Integer ->
   Dynamic t CareMistakes ->
   Dynamic t FoodJournal ->
+  Event t () ->
   m (Dynamic t Stage)
-stageNetwork dTimer dCareMistakes dFoodJournal = do
+stageNetwork dTimer dCareMistakes dFoodJournal eRespawn = do
   let 
       hatch :: Stage -> Stage
       hatch Egg = Stage1
@@ -276,7 +283,7 @@ stageNetwork dTimer dCareMistakes dFoodJournal = do
       bEvil = (\foodJournal -> foodJournal == goEvil) <$> current dFoodJournal
       eGoEvil = makeEvil <$ gate bEvil (updated dTimer) -- evil if we have FML in Morse Code via LongFood/ShortFood
   
-  foldDyn ($) Egg $ leftmost [ eHatch, eKill, eGoEvil ]
+  foldDyn ($) Egg $ leftmost [ eHatch, eKill, eGoEvil, (\s -> Egg )<$ eRespawn ]
 
 consciousnessNetwork :: forall t m.
   ( MonadWidget t m
@@ -285,8 +292,9 @@ consciousnessNetwork :: forall t m.
   , MonadHold t m
   ) =>
   Dynamic t Integer ->
+  Event t () ->
   m (Dynamic t Consciousness)
-consciousnessNetwork dTimer = mdo
+consciousnessNetwork dTimer eRespawn = mdo
   let 
     putToSleep :: Consciousness -> Consciousness
     putToSleep con = if con == Awake then Asleep else con
@@ -304,7 +312,7 @@ consciousnessNetwork dTimer = mdo
     bWakeUp = isAsleep <$> current consc
     eWakeUp = wakeUp <$ gate bWakeUp (updated dTimer) 
 
-  consc <- foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep ]
+  consc <- foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep, (\c -> Awake )<$ eRespawn ]
 
   return consc
 
@@ -320,8 +328,9 @@ poopStateNetwork ::
   ) =>
   Dynamic t Integer ->
   Event t () ->
+  Event t () ->
   m (Dynamic t PoopState)
-poopStateNetwork dTimer eScoop = do
+poopStateNetwork dTimer eScoop eRespawn = do
   let
     ePoop = poopEvent dTimer
 
@@ -331,7 +340,7 @@ poopStateNetwork dTimer eScoop = do
 
     eScoopPoop = scoopPoop <$ eScoop
 
-  foldDyn ($) NoPoop $ leftmost [ eScoopPoop, ePoop ] 
+  foldDyn ($) NoPoop $ leftmost [ eScoopPoop, ePoop, (\ps -> NoPoop )<$ eRespawn ] 
 
 poopEvent ::
   Reflex t =>
@@ -355,14 +364,15 @@ appetiteNetwork ::
   ) =>
   Dynamic t Integer ->
   Event t (Food) ->
+  Event t () ->
   m (Dynamic t Appetite)
-appetiteNetwork dTimer eFeed = do
+appetiteNetwork dTimer eFeed eRespawn = do
   let
     eMakeHungry = hungerEvent dTimer
 
     eFeedCreature = fillStomach <$> eFeed 
 
-  foldDyn ($) Full $ leftmost [ eFeedCreature, eMakeHungry ]
+  foldDyn ($) Full $ leftmost [ eFeedCreature, eMakeHungry, (\a -> Full )<$ eRespawn ]
 
 hungerEvent ::
   Reflex t =>
@@ -385,11 +395,11 @@ foodJournalNetwork ::
   , MonadHold t m
   ) =>
   Event t (Food) ->
+  Event t () -> 
   m (Dynamic t FoodJournal)
-foodJournalNetwork eFeed = do
-  foldDyn 
-    ($) (FoodJournal Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) 
-    $ journalFood <$> eFeed
+foodJournalNetwork eFeed eRespawn = do
+  let initFJ = (FoodJournal Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+  foldDyn ($) initFJ $ leftmost [ journalFood <$> eFeed, (\fj -> initFJ ) <$ eRespawn ]
 
 careMistakesNetwork ::
   ( MonadWidget t m
@@ -401,8 +411,9 @@ careMistakesNetwork ::
   Dynamic t Consciousness ->
   Dynamic t Appetite ->  
   Dynamic t PoopState ->
+  Event t () ->
   m (Dynamic t CareMistakes)
-careMistakesNetwork dTimer dConsciousness dAppetite dPoopState = mdo
+careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn = mdo
   let
     addCareMistake :: CareMistake -> CareMistakes -> CareMistakes
     addCareMistake cm cms = 
@@ -422,7 +433,7 @@ careMistakesNetwork dTimer dConsciousness dAppetite dPoopState = mdo
 
     eHungerCareMistake = addCareMistake Hunger <$ (gate bAwakeAndHungry $ hungerEvent dTimer)
 
-  foldDyn ($) [] $ leftmost [ ePoopCareMistake, eHungerCareMistake ]
+  foldDyn ($) [] $ leftmost [ ePoopCareMistake, eHungerCareMistake, (\cms -> []) <$ eRespawn ]
 
 creatureActivityNetwork ::
   ( MonadWidget t m
@@ -434,8 +445,9 @@ creatureActivityNetwork ::
   Event t Food ->
   Dynamic t PoopState ->
   Event t () ->
+  Event t () ->
   m (Dynamic t CreatureActivity)
-creatureActivityNetwork dTimer eFeed dPoopState eScoop = do
+creatureActivityNetwork dTimer eFeed dPoopState eScoop eRespawn = do
   eThreeSecondsAfterFeeding <- delay 3 eFeed
 
   let 
@@ -458,9 +470,9 @@ creatureActivityNetwork dTimer eFeed dPoopState eScoop = do
     eGoFromEatingBackToFrolicking = frolick <$ eThreeSecondsAfterFeeding
     goFromAvoidingPoopBackToFrolicking = frolick <$ eScoop
     eEat = eat <$> eFeed
-    eAvoidPoop = avoidPoop <$ updated dPoopState
+    eAvoidPoop = avoidPoop <$ updated dPoopState -- in the leftmost below respawn has to be to the left of eAvoidPoop or it the updated dynamic poop state will trigger avoiding poop
 
-  foldDyn ($) Frolicking $ leftmost [ eEat, eGoFromEatingBackToFrolicking, goFromAvoidingPoopBackToFrolicking, eAvoidPoop ]
+  foldDyn ($) Frolicking $ leftmost [ eEat, eGoFromEatingBackToFrolicking, goFromAvoidingPoopBackToFrolicking, (\ca -> Frolicking ) <$ eRespawn, eAvoidPoop ]
 
 determineView :: 
   ( MonadWidget t m
