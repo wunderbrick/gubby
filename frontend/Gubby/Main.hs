@@ -306,11 +306,17 @@ consciousnessNetwork dTimer eRespawn = mdo
     isAsleep con =
       con == Asleep
 
-    bPutToSleep = isItTime 170 <$> (current dTimer)
-    ePutToSleep = putToSleep <$ gate bPutToSleep (updated dTimer) 
-
     bWakeUp = isAsleep <$> current consc
-    eWakeUp = wakeUp <$ gate bWakeUp (updated dTimer) 
+
+    ePutToSleep = putToSleep <$ eSleep
+
+  eSleepAfterEat <- delay 140 (hungerEvent dTimer)
+
+  eWakeAfterSleep <- delay 60 eSleepAfterEat
+
+  let
+    eSleep = putToSleep <$ eSleepAfterEat
+    eWakeUp = wakeUp <$ gate bWakeUp eSleep
 
   consc <- foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep, (\c -> Awake )<$ eRespawn ]
 
@@ -332,29 +338,33 @@ poopStateNetwork ::
   m (Dynamic t PoopState)
 poopStateNetwork dTimer eScoop eRespawn = do
   let
-    ePoop = poopEvent dTimer
-
     scoopPoop :: PoopState -> PoopState
     scoopPoop ps =
       if ps == PoopPresent then NoPoop else ps
 
     eScoopPoop = scoopPoop <$ eScoop
 
+  ePoop <- poopEvent dTimer
+
   foldDyn ($) NoPoop $ leftmost [ eScoopPoop, ePoop, (\ps -> NoPoop )<$ eRespawn ] 
 
 poopEvent ::
-  Reflex t =>
+  ( MonadWidget t m
+  , Reflex t
+  , MonadFix m
+  , MonadHold t m
+  ) =>
   Dynamic t Integer ->
-  Event t (PoopState -> PoopState)
-poopEvent dTimer = 
+  m (Event t (PoopState -> PoopState))
+poopEvent dTimer = do 
   let
     makePoop :: PoopState -> PoopState
     makePoop ps =
       if ps == NoPoop then PoopPresent else ps
 
-    bMakePoop = isItTime 70 <$> (current dTimer)
-  in 
-    makePoop <$ gate bMakePoop (updated dTimer)
+  eFeed <- delay 20 $ hungerEvent dTimer
+
+  return $ makePoop <$ eFeed
 
 appetiteNetwork ::
   ( MonadWidget t m
@@ -414,6 +424,8 @@ careMistakesNetwork ::
   Event t () ->
   m (Dynamic t CareMistakes)
 careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn = mdo
+  ePoop <- poopEvent dTimer
+  
   let
     addCareMistake :: CareMistake -> CareMistakes -> CareMistakes
     addCareMistake cm cms = 
@@ -425,7 +437,7 @@ careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn = mdo
 
     bAwakeAndPoopPresent = (&&) <$> bAwake <*> bPoopState
 
-    ePoopCareMistake = addCareMistake TooMuchPoop <$ (gate bAwakeAndPoopPresent $ poopEvent dTimer) 
+    ePoopCareMistake = addCareMistake TooMuchPoop <$ (gate bAwakeAndPoopPresent $ ePoop) 
 
     bHungerState = (\hs -> hs /= Full) <$> current dAppetite
 
