@@ -24,7 +24,7 @@ My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) proj
 
 ### Develop with Live Reload (Almost)
 
-`nix-shell -A shells.ghc --run 'ghcid -W -c "cabal --project-file=frontend/cabal.project new-repl all" -T Main.main'`
+`nix-shell -A shells.ghc --run 'ghcid -W -c "cabal --project-file=frontend/cabal-ghcjs.project new-repl all" -T Main.main'`
 
 Go to http://localhost:3003/ in your browser. You still have to refresh the page on changes but you get automatic recompilation.
 
