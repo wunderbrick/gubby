@@ -100,16 +100,3 @@ data Creature =
         , paused :: Bool
     }
     deriving (Eq, Show)
-
-initCreature :: Creature
-initCreature =
-    Creature 
-    Egg 
-    Awake 
-    NoPoop
-    Full
-    (FoodJournal Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
-    []
-    Frolicking
-    True
-    

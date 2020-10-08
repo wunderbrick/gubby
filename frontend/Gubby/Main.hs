@@ -76,7 +76,7 @@ gubby = mdo
   el "div" $ mdo
     dCreature <- fst <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
-    gameStateButtonsEvents <- gameStateButtons (paused <$> dCreature)
+    gameStateButtonsEvents <- gameStateButtons (paused <$> dCreature) (stage <$> dCreature)
 
     gameView dCreature 
 
@@ -570,12 +570,20 @@ gameView dCreature =
     el "br" blank
     el "br" blank
 
-hideFeedingElements :: Appetite -> PoopState -> Consciousness -> Stage -> CreatureActivity -> Bool
-hideFeedingElements appetite poopState consciousness stage activity =
+hidePause :: Stage -> Bool
+hidePause stage =
+  stage == StageEvil
+
+hideRespawn :: Stage -> Bool
+hideRespawn stage =
+  stage == Egg
+
+disableFeedingElements :: Appetite -> PoopState -> Consciousness -> Stage -> CreatureActivity -> Bool
+disableFeedingElements appetite poopState consciousness stage activity =
   appetite == Full || poopState == PoopPresent || consciousness == Asleep || stage /= Stage1 || activity == Eating LongFood || activity == Eating ShortFood
 
-hideScoopElement :: PoopState -> Consciousness -> Stage -> Bool
-hideScoopElement poopState consciousness stage =
+disableScoopElement :: PoopState -> Consciousness -> Stage -> Bool
+disableScoopElement poopState consciousness stage =
   poopState == NoPoop || consciousness == Asleep || stage /= Stage1
 
 disable :: Bool -> Map Text Text
@@ -589,17 +597,24 @@ gameStateButtons ::
   , MonadHold t m
   ) =>
   Dynamic t Bool ->
+  Dynamic t Stage ->
   m (Event t (), Event t ())
-gameStateButtons dPause = mdo
+gameStateButtons dPause dStage = mdo
   let
+    dPauseBool = hidePause <$> dStage
+    dPauseButtonActiveOrNot = disable <$> dPauseBool
+
+    dRespawnBool = hideRespawn <$> dStage
+    dRespawnActiveOrNot = disable <$> dRespawnBool
+
     pauseButtonText :: Bool -> Text
     pauseButtonText b =
       if b then "Start" else "Pause"
 
-  (eP,_) <- elDynAttr' "button" mempty $ dynText $ pauseButtonText <$> dPause
+  (eP,_) <- elDynAttr' "button" dPauseButtonActiveOrNot $ dynText $ pauseButtonText <$> dPause
   let ePause = domEvent Click eP
 
-  (eRs,_) <- elDynAttr' "button" mempty $ text "Respawn"
+  (eRs,_) <- elDynAttr' "button" dRespawnActiveOrNot $ text "Respawn"
   let eRespawn = domEvent Click eRs
 
   el "br" blank
@@ -620,10 +635,10 @@ gamePlayButtons dCreature = mdo
       dStage = stage <$> dCreature
       dConsciousness = consciousness <$> dCreature
       dActivity = creatureActivity <$> dCreature
-      dHungerBool = hideFeedingElements <$> dHunger <*> dPoopState <*> dConsciousness <*> dStage <*> dActivity
+      dHungerBool = disableFeedingElements <$> dHunger <*> dPoopState <*> dConsciousness <*> dStage <*> dActivity
       dFeedDisabledOrNot = disable <$> dHungerBool
       dPoopState = poopState <$> dCreature
-      dPoopStateBool = hideScoopElement <$> dPoopState <*> dConsciousness <*> dStage
+      dPoopStateBool = disableScoopElement <$> dPoopState <*> dConsciousness <*> dStage
       dScoopDisabledOrNot = disable <$> dPoopStateBool
 
   (eFB,_) <- elDynAttr' "button" dFeedDisabledOrNot $ text "Feed Banana"
