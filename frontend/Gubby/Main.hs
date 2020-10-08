@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE CPP #-}
@@ -7,14 +8,16 @@
 module Main where
 
 import GHC.Show as S
+import Control.Monad (void, join, (<=<))
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (liftIO, MonadIO)
 
 import Data.Text (pack, unpack, Text)
 import Data.Map
 import Data.Time.Clock (getCurrentTime, UTCTime, NominalDiffTime, diffUTCTime)
 
 import Reflex
+import Reflex.Network
 import Reflex.Dom
 
 import Model
@@ -47,11 +50,11 @@ textMapInnerFloat str fl =
 rangeInputConf :: Reflex t => RangeInputConfig t
 rangeInputConf = def { 
     _rangeInputConfig_attributes =  
-      constDyn $ textMapInnerFloat "step" 10 
-      <> textMapInnerFloat "min" 30 
-      <> textMapInnerFloat "max" 21600
+      constDyn $ textMapInnerFloat "step" 1 
+      <> textMapInnerFloat "min" 1 
+      <> textMapInnerFloat "max" 720
       <> "class" =: "slider-width"
-  , _rangeInputConfig_initialValue = 30.0
+  , _rangeInputConfig_initialValue = 1
   }
 
 gubby :: forall t m.
@@ -71,7 +74,7 @@ gubby = mdo
   el "br" blank
   el "br" blank
   el "div" $ mdo
-    dCreature <- fst <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents
+    dCreature <- fst <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
     gameStateButtonsEvents <- gameStateButtons (paused <$> dCreature)
 
@@ -85,16 +88,18 @@ gubby = mdo
 
     el "br" blank
 
-    dynText $ (pack . show) <$> _rangeInput_value rangeVal
+    dynText $ (pack . show . (*15)) <$> dRangeNum
 
     el "br" blank
 
     rangeVal <- rangeInput $ rangeInputConf
 
+    let dRangeNum = round <$> _rangeInput_value rangeVal
+
     el "br" blank
     el "br" blank
 
-    dAge <- snd <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents
+    dAge <- snd <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
     dynText $ (pack . ("Age: " ++) . (++ " seconds") . show) <$> dAge
 
@@ -103,12 +108,14 @@ gubby = mdo
     el "br" blank
     el "br" blank
 
+    {-
     debugView dCreature
 
     el "br" blank
     el "br" blank
     el "br" blank
     el "br" blank
+    -}
 
     elAttr "a" (fromList [("href", "https://reflex-frp.org/"), ("target", "_blank") ]) (text "♥ Haskell & Reflex-FRP")
 
@@ -207,36 +214,33 @@ creatureNetwork :: forall t m.
   ) =>
   (Event t (), Event t (), Event t ()) ->
   (Event t (), Event t ()) ->
+  Dynamic t Integer ->
   m (Dynamic t Creature, Dynamic t Integer)
-creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents = mdo
+creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeVal = mdo
   let (eFeedBanana, eFeedPlum, eScoop) = gamePlayButtonsEvents
       eFeed = leftmost [ LongFood <$ eFeedBanana, ShortFood <$ eFeedPlum ]
       (ePause, eRespawn) = gameStateButtonsEvents 
   dTimer <- timerWidget dStage dPause gameStateButtonsEvents
   dStage <- stageNetwork dTimer dCareMistakes dFoodJournal eRespawn
-  dConsciousness <- consciousnessNetwork dTimer eRespawn
-  dPoopState <- poopStateNetwork dTimer eScoop eRespawn
-  dAppetite <- appetiteNetwork dTimer eFeed eRespawn
+  dConsciousness <- consciousnessNetwork dTimer eRespawn dRangeVal
+  dPoopState <- poopStateNetwork dTimer eScoop eRespawn dRangeVal
+  dAppetite <- appetiteNetwork dTimer eFeed eRespawn dRangeVal
   dFoodJournal <- foodJournalNetwork eFeed eRespawn
-  dCareMistakes <- careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn
+  dCareMistakes <- careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn dRangeVal
   dCreatureActivity <- creatureActivityNetwork dTimer eFeed dPoopState eScoop eRespawn
   dPause <- pauseNetwork ePause eRespawn
 
-  dInitCreature <- holdDyn initCreature (initCreature <$ eRespawn)
-
-  let
-    dynamicCreature = 
-      Creature 
-      <$> dStage
-      <*> dConsciousness 
-      <*> dPoopState 
-      <*> dAppetite 
-      <*> dFoodJournal 
-      <*> dCareMistakes 
-      <*> dCreatureActivity
-      <*> dPause
-
-  return (dynamicCreature, dTimer)
+  return 
+    $ (Creature 
+    <$> dStage
+    <*> dConsciousness 
+    <*> dPoopState 
+    <*> dAppetite 
+    <*> dFoodJournal 
+    <*> dCareMistakes 
+    <*> dCreatureActivity
+    <*> dPause
+    , dTimer)
 
 pauseNetwork :: 
   ( MonadWidget t m
@@ -249,7 +253,6 @@ pauseNetwork ::
   m (Dynamic t Bool)
 pauseNetwork ePause eRespawn = mdo
   foldDyn ($) True $ leftmost [ not <$ ePause, (\p -> True) <$ eRespawn ] 
-
 
 stageNetwork ::
   ( MonadWidget t m
@@ -283,7 +286,7 @@ stageNetwork dTimer dCareMistakes dFoodJournal eRespawn = do
       bEvil = (\foodJournal -> foodJournal == goEvil) <$> current dFoodJournal
       eGoEvil = makeEvil <$ gate bEvil (updated dTimer) -- evil if we have FML in Morse Code via LongFood/ShortFood
   
-  foldDyn ($) Egg $ leftmost [ eHatch, eKill, eGoEvil, (\s -> Egg )<$ eRespawn ]
+  foldDyn ($) Egg $ leftmost [ (\s -> Egg ) <$ eRespawn, eHatch, eKill, eGoEvil ]
 
 consciousnessNetwork :: forall t m.
   ( MonadWidget t m
@@ -293,8 +296,9 @@ consciousnessNetwork :: forall t m.
   ) =>
   Dynamic t Integer ->
   Event t () ->
+  Dynamic t Integer ->
   m (Dynamic t Consciousness)
-consciousnessNetwork dTimer eRespawn = mdo
+consciousnessNetwork dTimer eRespawn dRangeVal = mdo
   let 
     putToSleep :: Consciousness -> Consciousness
     putToSleep con = if con == Awake then Asleep else con
@@ -308,16 +312,12 @@ consciousnessNetwork dTimer eRespawn = mdo
 
     bWakeUp = isAsleep <$> current consc
 
-    ePutToSleep = putToSleep <$ eSleep
+    ePutToSleep = timedEvent 70 putToSleep dTimer dRangeVal
+    
+    eWakeUp = timedEvent 30 wakeUp dTimer dRangeVal
 
-  eSleepAfterEat <- delay 140 (hungerEvent dTimer)
-
-  eWakeAfterSleep <- delay 60 eSleepAfterEat
-
-  let
-    eSleep = putToSleep <$ eSleepAfterEat
-    eWakeUp = wakeUp <$ gate bWakeUp eSleep
-
+    eWakeUpOnlyIfAsleep = gate bWakeUp eWakeUp
+    
   consc <- foldDyn ($) Awake $ leftmost [ eWakeUp, ePutToSleep, (\c -> Awake )<$ eRespawn ]
 
   return consc
@@ -335,8 +335,9 @@ poopStateNetwork ::
   Dynamic t Integer ->
   Event t () ->
   Event t () ->
+  Dynamic t Integer ->
   m (Dynamic t PoopState)
-poopStateNetwork dTimer eScoop eRespawn = do
+poopStateNetwork dTimer eScoop eRespawn dRangeVal = do
   let
     scoopPoop :: PoopState -> PoopState
     scoopPoop ps =
@@ -344,27 +345,26 @@ poopStateNetwork dTimer eScoop eRespawn = do
 
     eScoopPoop = scoopPoop <$ eScoop
 
-  ePoop <- poopEvent dTimer
+  ePoop <- poopEvent dTimer dRangeVal
 
   foldDyn ($) NoPoop $ leftmost [ eScoopPoop, ePoop, (\ps -> NoPoop )<$ eRespawn ] 
 
-poopEvent ::
+poopEvent :: forall t m.
   ( MonadWidget t m
   , Reflex t
   , MonadFix m
   , MonadHold t m
   ) =>
   Dynamic t Integer ->
+  Dynamic t Integer ->
   m (Event t (PoopState -> PoopState))
-poopEvent dTimer = do 
+poopEvent dTimer dRangeVal = mdo
   let
     makePoop :: PoopState -> PoopState
     makePoop ps =
       if ps == NoPoop then PoopPresent else ps
-
-  eFeed <- delay 20 $ hungerEvent dTimer
-
-  return $ makePoop <$ eFeed
+  
+  return $ timedEvent 25 makePoop dTimer dRangeVal
 
 appetiteNetwork ::
   ( MonadWidget t m
@@ -375,28 +375,47 @@ appetiteNetwork ::
   Dynamic t Integer ->
   Event t (Food) ->
   Event t () ->
+  Dynamic t Integer ->
   m (Dynamic t Appetite)
-appetiteNetwork dTimer eFeed eRespawn = do
+appetiteNetwork dTimer eFeed eRespawn dRangeVal = do
   let
-    eMakeHungry = hungerEvent dTimer
+    eMakeHungry = hungerEvent dTimer dRangeVal
 
     eFeedCreature = fillStomach <$> eFeed 
 
   foldDyn ($) Full $ leftmost [ eFeedCreature, eMakeHungry, (\a -> Full )<$ eRespawn ]
 
-hungerEvent ::
+timedEvent :: forall t a b.
+  Reflex t =>
+  Integer ->
+  (a -> a) ->
+  Dynamic t Integer ->
+  Dynamic t Integer ->
+  Event t (a -> a)
+timedEvent defaultInterval f dTimer dRangeVal =
+  let
+    bRangeVal = current dRangeVal
+
+    bDefaultInterval = (constant defaultInterval :: Behavior t Integer)
+
+    bAdjustedInterval = (*) <$> bRangeVal <*> bDefaultInterval
+
+    bDoTheThing = isItTime <$> bAdjustedInterval <*> (current dTimer)
+  in 
+    f <$ gate bDoTheThing (updated dTimer) 
+
+hungerEvent :: forall t.
   Reflex t =>
   Dynamic t Integer ->
+  Dynamic t Integer ->
   Event t (Appetite -> Appetite)
-hungerEvent dTimer =
+hungerEvent dTimer dRangeVal =
   let
     makeHungry :: Appetite -> Appetite
     makeHungry app =
       if app == Full then Hungry (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) else app
-
-    bMakeHungry = isItTime 30 <$> (current dTimer)
-  in 
-    makeHungry <$ gate bMakeHungry (updated dTimer)
+  in
+    timedEvent 15 makeHungry dTimer dRangeVal
 
 foodJournalNetwork ::
   ( MonadWidget t m
@@ -422,9 +441,10 @@ careMistakesNetwork ::
   Dynamic t Appetite ->  
   Dynamic t PoopState ->
   Event t () ->
+  Dynamic t Integer ->
   m (Dynamic t CareMistakes)
-careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn = mdo
-  ePoop <- poopEvent dTimer
+careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn dRangeVal = mdo
+  ePoop <- poopEvent dTimer dRangeVal
   
   let
     addCareMistake :: CareMistake -> CareMistakes -> CareMistakes
@@ -443,7 +463,7 @@ careMistakesNetwork dTimer dConsciousness dAppetite dPoopState eRespawn = mdo
 
     bAwakeAndHungry = (&&) <$> bAwake <*> bHungerState
 
-    eHungerCareMistake = addCareMistake Hunger <$ (gate bAwakeAndHungry $ hungerEvent dTimer)
+    eHungerCareMistake = addCareMistake Hunger <$ (gate bAwakeAndHungry $ hungerEvent dTimer dRangeVal)
 
   foldDyn ($) [] $ leftmost [ ePoopCareMistake, eHungerCareMistake, (\cms -> []) <$ eRespawn ]
 

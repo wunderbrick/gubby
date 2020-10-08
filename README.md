@@ -16,7 +16,11 @@ My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) proj
 
 * Run the reflex-platform/try-reflex script to get things you need. Only do this if you want to avoid a whole lot of compiling. Go ahead and exit the shell you're dropped into when this is finished.
 
-* This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful to you.
+* This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful to you.* Clone with `--recurse-submodules`.
+
+* Run the reflex-platform/try-reflex script to setup the Reflex binary cache and get things you need. Only do this if you want to avoid a whole lot of compiling.
+
+* This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful.
 
 ### Develop with Live Reload (Almost)
 
