@@ -1,6 +1,6 @@
 # Gubby: A Creature You Take Care Of
 
-My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) project!
+My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) project! May contain bugs.
 
 ## Live Demo
 
@@ -12,11 +12,11 @@ My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) proj
 
 * Clone with `--recurse-submodules`.
 
-* Enable the [Reflex binary cache](https://github.com/reflex-frp/reflex-platform/blob/develop/notes/NixOS.md).
+* Enable the Reflex binary cache to prevent endless compiling. If you're on NixOS, see [Reflex binary cache](https://github.com/reflex-frp/reflex-platform/blob/develop/notes/NixOS.md). If you're not using NixOS then just let the `try-reflex` script configure the cache for you. Regardless of your platform you need to run `try-reflex` to do some additional setup.
 
-* Run the reflex-platform/try-reflex script to get things you need. Only do this if you want to avoid a whole lot of compiling. Go ahead and exit the shell you're dropped into when this is finished.
+* `cd reflex-platform` and run `./try-reflex`. Go ahead and exit the shell you're dropped into when this is finished and `cd ../`.
 
-* This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful to you.* Clone with `--recurse-submodules`.
+This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful to you.
 
 ### Develop with Live Reload (Almost)
 
