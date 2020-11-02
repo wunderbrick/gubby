@@ -1,6 +1,10 @@
 # Gubby: A Creature You Take Care Of
 
+![Image of Gubby](https://raw.githubusercontent.com/wunderbrick/gubby/master/gubby.png)
+
 My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) project! May contain bugs.
+
+Beware! Gubby harbors a dark secret.
 
 ## Live Demo
 
