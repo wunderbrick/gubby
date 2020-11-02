@@ -101,7 +101,7 @@ gubby = mdo
 
     dAge <- snd <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
-    dynText $ (pack . ("Age: " ++) . (++ " seconds") . show) <$> dAge
+    dynText $ (pack . ("Age: " ++) . (++ " Seconds") . show) <$> dAge
 
     el "br" blank
     el "br" blank
