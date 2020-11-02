@@ -3,17 +3,17 @@
   useWarp = true;
 
   packages = {
-    frontend = ./frontend;
+    gubby = ./gubby;
   };
 
   android.frontend = {
-    executableName = "frontend";
+    executableName = "gubby";
     applicationId = "org.example.gubby";
     displayName = "Gubby";
   };
 
   shells = {
-    ghc = ["frontend"];
-    ghcjs = ["frontend"];
+    ghc = ["gubby"];
+    ghcjs = ["gubby"];
   };
 })

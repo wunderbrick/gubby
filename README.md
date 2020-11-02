@@ -4,7 +4,7 @@ My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) proj
 
 ## Live Demo
 
-[Gubby](https://wunderbrick.github.io/)
+[Gubby](https://wunderbrick.github.io/gubby/)
 
 ## Development
 
@@ -20,13 +20,13 @@ My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) proj
 
 ### Develop with Live Reload (Almost)
 
-`nix-shell -A shells.ghc --run 'ghcid -W -c "cabal --project-file=frontend/cabal-ghcjs.project new-repl all" -T Main.main'`
+`nix-shell -A shells.ghc --run 'ghcid -W -c "cabal --project-file=cabal.project new-repl gubby" -T Main.main'`
 
 Go to http://localhost:3003/ in your browser. You still have to refresh the page on changes but you get automatic recompilation.
 
 ### Compile With GHCJS for Web Deployment
 
-`nix-shell -A shells.ghcjs --run "cabal --project-file=frontend/cabal.project --builddir=frontend/dist-ghcjs new-build all"`
+`nix-shell -A shells.ghcjs --run "cabal --project-file=cabal-ghcjs.project --builddir=gubby/dist-ghcjs new-build gubby"`
 
 Just use the resulting files with your favorite server like you would any other HTML/JS/CSS.
 
