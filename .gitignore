@@ -1,2 +1,7 @@
 dist-newstyle
-frontend/dist-ghcjs
+dist*
+**/*.hi
+**/*.o
+.ghc*
+result-android
+gubby/dist-ghcjs

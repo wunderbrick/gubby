@@ -16,7 +16,7 @@ Beware! Gubby harbors a dark secret.
 
 * Clone with `--recurse-submodules`.
 
-* Enable the Reflex binary cache to prevent endless compiling. If you're on NixOS, see [Reflex binary cache](https://github.com/reflex-frp/reflex-platform/blob/develop/notes/NixOS.md). If you're not using NixOS then just let the `try-reflex` script configure the cache for you. Regardless of your platform you need to run `try-reflex` to do some additional setup: `cd reflex-platform` and run `./try-reflex`. Go ahead and exit the shell you're dropped into when this is finished and `cd ../`.
+* Enable the Reflex binary cache to prevent endless compiling. If you're on NixOS, see [Reflex binary cache](https://github.com/reflex-frp/reflex-platform/blob/develop/notes/NixOS.md). If you're not using NixOS then just let the `try-reflex` script configure the cache for you. Regardless of your platform you need to run `try-reflex` to do some additional setup: `cd reflex-platform` and `./try-reflex`. Go ahead and exit the shell you're dropped into when this is finished and `cd ../`.
 
 This project skeleton was based off of this [document](https://github.com/reflex-frp/reflex-platform/blob/develop/docs/project-development.rst) which might be helpful to you.
 
@@ -34,4 +34,8 @@ Just use the resulting files with your favorite server like you would any other 
 
 ### Build an Android APK
 
-`nix-build -o YOUR-DIR-HERE -A android.frontend`
+`nix-build -o result-android -A android.gubby`
+
+Make sure USB debugging is enabled on your devoice and then you can run the deployment script at:
+
+`result-android/bin/deploy`
