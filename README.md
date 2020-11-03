@@ -2,7 +2,7 @@
 
 ![Image of Gubby](https://raw.githubusercontent.com/wunderbrick/gubby/master/gubby.png)
 
-My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) project! May contain bugs.
+My first Haskell project and my first [Reflex-FRP](https://reflex-frp.org/) project! May contain egregious bugs.
 
 Beware! Gubby harbors a dark secret.
 
