@@ -21,7 +21,7 @@ in
     gubby = ./gubby;
   };
 
-  android.frontend = {
+  android.gubby = {
     executableName = "gubby";
     applicationId = "org.example.gubby";
     displayName = "Gubby";
