@@ -30,6 +30,28 @@ css :: Text
 css = 
   ".slider-width { width: 270px; }"
 
+br ::
+  ( MonadWidget t m
+  , Reflex t
+  , MonadFix m
+  , MonadHold t m
+  ) =>
+  m ()
+br = do 
+  el "br" blank
+
+nbr ::
+  ( MonadWidget t m
+  , Reflex t
+  , MonadFix m
+  , MonadHold t m
+  ) =>
+  Int -> m [()]
+-- multiple line breaks
+nbr n =
+  sequence brs 
+    where brs = replicate n br
+
 docHead ::
   ( MonadWidget t m
   , Reflex t
@@ -67,12 +89,11 @@ gubby :: forall t m.
 gubby = mdo
   el "h1" $ text "Gubby"
   text "A creature you take care of,"
-  el "br" blank
+  br
   text "built with functional reactive programming,"
-  el "br" blank 
+  br 
   text "harboring a dark secret..."
-  el "br" blank
-  el "br" blank
+  nbr 2
   el "div" $ mdo
     dCreature <- fst <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
@@ -82,45 +103,40 @@ gubby = mdo
 
     gamePlayButtonsEvents <- gamePlayButtons dCreature
     
-    el "br" blank
+    br
 
     text "Game Speed (Feed Every n Seconds):"
 
-    el "br" blank
+    br
 
     dynText $ (pack . show . (*15)) <$> dRangeNum
 
-    el "br" blank
+    br
 
     rangeVal <- rangeInput $ rangeInputConf
 
     let dRangeNum = round <$> _rangeInput_value rangeVal
 
-    el "br" blank
-    el "br" blank
+    nbr 2
 
     dAge <- snd <$> creatureNetwork gamePlayButtonsEvents gameStateButtonsEvents dRangeNum
 
     dynText $ (pack . ("Age: " ++) . (++ " Seconds") . show) <$> dAge
 
-    el "br" blank
-    el "br" blank
-    el "br" blank
-    el "br" blank
+    nbr 4
 
     {-
     debugView dCreature
 
-    el "br" blank
-    el "br" blank
-    el "br" blank
-    el "br" blank
+    br
+    br
+    br
+    br
     -}
 
     elAttr "a" (fromList [("href", "https://reflex-frp.org/"), ("target", "_blank") ]) (text "♥ Haskell & Reflex-FRP")
 
-    el "br" blank
-    el "br" blank
+    nbr 2
 
     elAttr "a" (fromList [("href", "https://github.com/wunderbrick/gubby"), ("target", "_blank") ]) (text "Source Code")
 
@@ -139,10 +155,10 @@ debugView dCreature = do
     prettyView :: Show a => String -> (Creature -> a) -> m ()
     prettyView label accessor = do
       dynText $ ((pack . (label ++) . show) <$> accessor) <$> dCreature
-      el "br" blank
+      br
   
   el "b" $ text "Debug: "
-  el "br" blank
+  br
   prettyView "Stage: " stage
   prettyView "Consciousness: " consciousness
   prettyView "Poop State: " poopState
@@ -500,11 +516,11 @@ creatureActivityNetwork dTimer eFeed dPoopState eScoop eRespawn = do
     bPoopPresent = poopPresent <$> current dPoopState
 
     eGoFromEatingBackToFrolicking = frolick <$ eThreeSecondsAfterFeeding
-    goFromAvoidingPoopBackToFrolicking = frolick <$ eScoop
+    eGoFromAvoidingPoopBackToFrolicking = frolick <$ eScoop
     eEat = eat <$> eFeed
     eAvoidPoop = avoidPoop <$ updated dPoopState -- in the leftmost below respawn has to be to the left of eAvoidPoop or it the updated dynamic poop state will trigger avoiding poop
 
-  foldDyn ($) Frolicking $ leftmost [ eEat, eGoFromEatingBackToFrolicking, goFromAvoidingPoopBackToFrolicking, (\ca -> Frolicking ) <$ eRespawn, eAvoidPoop ]
+  foldDyn ($) Frolicking $ leftmost [ eEat, eGoFromEatingBackToFrolicking, eGoFromAvoidingPoopBackToFrolicking, (\ca -> Frolicking) <$ eRespawn, eAvoidPoop ]
 
 determineView :: 
   ( MonadWidget t m
@@ -564,11 +580,10 @@ gameView ::
   MonadWidget t m =>
   Dynamic t Creature ->
   m ()
-gameView dCreature =
-  el "div" $ mdo
-    determineView dCreature
-    el "br" blank
-    el "br" blank
+gameView dCreature = mdo
+  el "div" $ determineView dCreature
+  nbr 2
+  return ()
 
 hidePause :: Stage -> Bool
 hidePause stage =
@@ -617,8 +632,8 @@ gameStateButtons dPause dStage = mdo
   (eRs,_) <- elDynAttr' "button" dRespawnActiveOrNot $ text "Respawn"
   let eRespawn = domEvent Click eRs
 
-  el "br" blank
-  el "br" blank
+  br
+  br
 
   return (ePause, eRespawn)
 
@@ -650,8 +665,8 @@ gamePlayButtons dCreature = mdo
   (eSP,_) <- elDynAttr' "button" dScoopDisabledOrNot $ text "Scoop Poop"
   let eScoop = domEvent Click eSP
 
-  el "br" blank
-  el "br" blank
+  br
+  br
 
   return (eFeedBanana, eFeedPlum, eScoop)
 
